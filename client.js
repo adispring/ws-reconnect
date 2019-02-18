@@ -33,7 +33,7 @@ class WebSocketClient extends EventEmitter {
           this.reconnect(e)
           break
       }
-      this.onclose(e)
+      this.onclose && this.onclose(e)
     })
     this.instance.on('error', e => {
       switch (e.code) {
@@ -62,19 +62,6 @@ class WebSocketClient extends EventEmitter {
       console.log('WebSocketClient: reconnecting...')
       this.open(this.url)
     }, this.autoReconnectInterval)
-  }
-
-  onopen (e) {
-    console.log('WebSocketClient: open', arguments)
-  }
-  onmessage (data, flags, number) {
-    console.log('WebSocketClient: message', arguments)
-  }
-  onerror (e) {
-    console.log('WebSocketClient: error', arguments)
-  }
-  onclose (e) {
-    console.log('WebSocketClient: closed', arguments)
   }
 }
 
@@ -120,21 +107,40 @@ class WebSocketClient extends EventEmitter {
 WebSocketClient.prototype.addEventListener = EventTarget.addEventListener
 WebSocketClient.prototype.removeEventListener = EventTarget.removeEventListener
 
+/* WebSocketClient.prototype.onopen = function (e) { */
+/* console.log('WebSocketClient: open', arguments) */
+/* } */
+/* WebSocketClient.prototype.onmessage = function (data, flags, number) { */
+/* console.log('WebSocketClient: message', arguments) */
+/* } */
+/* WebSocketClient.prototype.onerror = function (e) { */
+/* console.log('WebSocketClient: error', arguments) */
+/* } */
+/* WebSocketClient.prototype.onclose = function (e) { */
+/* console.log('WebSocketClient: closed', arguments) */
+/* } */
+
 var wsc = new WebSocketClient({
   url: 'ws://localhost:6000/',
   SocketCtor: WebSocket
 })
-/* wsc.onopen = function (e) { */
-/* console.log('WebSocketClient connected:', e) */
-/* this.send('Hello World !') */
-/* } */
+wsc.onopen = function (e) {
+  console.log('WebSocketClient open:', e)
+  this.send('Hello World !')
+}
+/* fromEvent(wsc, 'open').subscribe(e => { */
+/* console.log(`open: ${e}`) */
+/* wsc.send('Hello World!') */
+/* }) */
 fromEvent(wsc, 'message').subscribe(data => {
   console.log(`WebSocketClient message #: `, data)
 })
-fromEvent(wsc, 'open').subscribe(e => {
-  console.log(`open: ${e}`)
-  wsc.send('Hello World!')
-})
+/* fromEvent(wsc, 'close').subscribe(e => { */
+/* console.log(`close: ${e}`) */
+/* }) */
 /* wsc.onmessage = function (data, flags, number) { */
 /* console.log(`WebSocketClient message #${number}: `, data) */
 /* } */
+wsc.onclose = function (e) {
+  console.log(`WebSocketClient close: `, e)
+}
