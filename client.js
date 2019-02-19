@@ -2,26 +2,29 @@ const EventEmitter = require('events')
 const WebSocket = require('ws')
 const EventTarget = require('ws/lib/event-target')
 const { fromEvent } = require('rxjs')
+const R = require('ramda')
 
-class WebSocketClient extends EventEmitter {
-  constructor (opts) {
+class ReconnectWebSocket extends EventEmitter {
+  constructor (config) {
     super()
-    const { url, SocketCtor, autoReconnectInterval = 5000 } = opts
-    this.number = 0 // Message number
-    this.url = url
-    this.SocketCtor = SocketCtor
-    this.autoReconnectInterval = autoReconnectInterval
+    const defaultConfig = {
+      autoReconnectInterval: 5000 // ms
+    }
+    this.config = R.mergeRight(defaultConfig, config)
     this.open()
   }
 
   open () {
-    this.instance = new this.SocketCtor(this.url)
+    this.instance = new this.config.SocketCtor(this.config.url)
     this.instance.on('open', () => {
-      this.onopen()
+      if (typeof this.onopen === 'function') {
+        this.onopen()
+      }
     })
-    this.instance.on('message', (data, flags) => {
-      this.number++
-      this.onmessage(data, flags, this.number)
+    this.instance.on('message', data => {
+      if (typeof this.onmessage === 'function') {
+        this.onmessage(data)
+      }
     })
     this.instance.on('close', e => {
       switch (e.code) {
@@ -33,15 +36,21 @@ class WebSocketClient extends EventEmitter {
           this.reconnect(e)
           break
       }
-      this.onclose && this.onclose(e)
+      if (typeof this.onclose === 'function') {
+        this.onclose(e)
+      }
     })
     this.instance.on('error', e => {
       switch (e.code) {
+        // WebSocket CloseEvent status code:
+        // https://developer.mozilla.org/en-US/docs/Web/API/CloseEvent
         case 'ECONNREFUSED':
           this.reconnect(e)
           break
         default:
-          this.onerror(e)
+          if (typeof this.onerror === 'function') {
+            this.onerror(e)
+          }
           break
       }
     })
@@ -56,12 +65,15 @@ class WebSocketClient extends EventEmitter {
   }
 
   reconnect (e) {
-    console.log(`WebSocketClient: retry in ${this.autoReconnectInterval}ms`, e)
+    console.log(
+      `WebSocketClient: retry in ${this.config.autoReconnectInterval}ms`,
+      e
+    )
     this.instance.removeAllListeners()
     setTimeout(() => {
       console.log('WebSocketClient: reconnecting...')
-      this.open(this.url)
-    }, this.autoReconnectInterval)
+      this.open(this.config.url)
+    }, this.config.autoReconnectInterval)
   }
 }
 
@@ -70,7 +82,7 @@ class WebSocketClient extends EventEmitter {
 // See https://html.spec.whatwg.org/multipage/comms.html#the-websocket-interface
 //
 ;['open', 'error', 'close', 'message'].forEach(method => {
-  Object.defineProperty(WebSocketClient.prototype, `on${method}`, {
+  Object.defineProperty(ReconnectWebSocket.prototype, `on${method}`, {
     /**
      * Return the listener of the event.
      *
@@ -104,43 +116,22 @@ class WebSocketClient extends EventEmitter {
   })
 })
 
-WebSocketClient.prototype.addEventListener = EventTarget.addEventListener
-WebSocketClient.prototype.removeEventListener = EventTarget.removeEventListener
+ReconnectWebSocket.prototype.addEventListener = EventTarget.addEventListener
+ReconnectWebSocket.prototype.removeEventListener =
+  EventTarget.removeEventListener
 
-/* WebSocketClient.prototype.onopen = function (e) { */
-/* console.log('WebSocketClient: open', arguments) */
-/* } */
-/* WebSocketClient.prototype.onmessage = function (data, flags, number) { */
-/* console.log('WebSocketClient: message', arguments) */
-/* } */
-/* WebSocketClient.prototype.onerror = function (e) { */
-/* console.log('WebSocketClient: error', arguments) */
-/* } */
-/* WebSocketClient.prototype.onclose = function (e) { */
-/* console.log('WebSocketClient: closed', arguments) */
-/* } */
-
-var wsc = new WebSocketClient({
+var ws = new ReconnectWebSocket({
   url: 'ws://localhost:6000/',
   SocketCtor: WebSocket
 })
-wsc.onopen = function (e) {
-  console.log('WebSocketClient open:', e)
-  this.send('Hello World !')
-}
-/* fromEvent(wsc, 'open').subscribe(e => { */
-/* console.log(`open: ${e}`) */
-/* wsc.send('Hello World!') */
-/* }) */
-fromEvent(wsc, 'message').subscribe(data => {
-  console.log(`WebSocketClient message #: `, data)
+const onopen$ = fromEvent(ws, 'open')
+onopen$.subscribe(() => {
+  console.log('WebSocketClient open')
+  ws.send('Hello World!')
 })
-/* fromEvent(wsc, 'close').subscribe(e => { */
-/* console.log(`close: ${e}`) */
-/* }) */
-/* wsc.onmessage = function (data, flags, number) { */
-/* console.log(`WebSocketClient message #${number}: `, data) */
-/* } */
-wsc.onclose = function (e) {
+fromEvent(ws, 'message').subscribe(data => {
+  console.log(`WebSocketClient message $: `, data)
+})
+fromEvent(ws, 'close').subscribe(e => {
   console.log(`WebSocketClient close: `, e)
-}
+})
