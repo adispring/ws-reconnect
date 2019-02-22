@@ -18,12 +18,14 @@ class ReconnectWebSocket extends EventEmitter {
     this.instance = new this.config.SocketCtor(this.config.url)
     this.instance.on('open', () => {
       if (typeof this.onopen === 'function') {
-        this.onopen()
+        /* this.onopen() */
+        this.emit('open')
       }
     })
     this.instance.on('message', data => {
       if (typeof this.onmessage === 'function') {
-        this.onmessage(data)
+        /* this.onmessage(data) */
+        this.emit('message', data)
       }
     })
     this.instance.on('close', e => {
@@ -37,7 +39,7 @@ class ReconnectWebSocket extends EventEmitter {
           break
       }
       if (typeof this.onclose === 'function') {
-        this.onclose(e)
+        this.emit('error', e)
       }
     })
     this.instance.on('error', e => {
@@ -49,7 +51,7 @@ class ReconnectWebSocket extends EventEmitter {
           break
         default:
           if (typeof this.onerror === 'function') {
-            this.onerror(e)
+            this.emit('error', e)
           }
           break
       }
@@ -91,6 +93,7 @@ class ReconnectWebSocket extends EventEmitter {
      */
     get () {
       const listeners = this.listeners(method)
+      console.log('get', listeners)
       for (var i = 0; i < listeners.length; i++) {
         if (listeners[i]._listener) return listeners[i]._listener
       }
@@ -105,6 +108,7 @@ class ReconnectWebSocket extends EventEmitter {
      */
     set (listener) {
       const listeners = this.listeners(method)
+      console.log('set', listeners)
       for (var i = 0; i < listeners.length; i++) {
         //
         // Remove only the listeners added via `addEventListener`.
@@ -125,12 +129,16 @@ var ws = new ReconnectWebSocket({
   SocketCtor: WebSocket
 })
 const onopen$ = fromEvent(ws, 'open')
+const onmessage$ = fromEvent(ws, 'message')
 onopen$.subscribe(() => {
   console.log('WebSocketClient open')
   ws.send('Hello World!')
 })
-fromEvent(ws, 'message').subscribe(data => {
-  console.log(`WebSocketClient message $: `, data)
+onmessage$.subscribe(data => {
+  console.log(`WebSocketClient message 1: `, data)
+})
+onmessage$.subscribe(data => {
+  console.log(`WebSocketClient message 2: `, data)
 })
 fromEvent(ws, 'close').subscribe(e => {
   console.log(`WebSocketClient close: `, e)
